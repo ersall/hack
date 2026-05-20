@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html class="dark" lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover" name="viewport"/>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ADM Panel">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ADM Panel — License Control</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<link rel="apple-touch-icon" href="icon.png?v=80">
+<link rel="icon" href="icon.png?v=80">
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      fontFamily: { sans: ["Inter", "sans-serif"] },
+      colors: {
+        "background": "#090909",
+        "surface": "#131314",
+        "surface-container": "#201f20",
+        "surface-container-highest": "#353436",
+        "primary": "#f4ca76",
+        "primary-container": "#d6af5e",
+        "on-surface": "#e5e2e3",
+        "on-surface-variant": "#d1c5b3",
+        "outline": "#9a8f7f",
+        "outline-variant": "#4e4638",
+        "error": "#ffb4ab",
+        "error-container": "#93000a"
+      }
+    }
+  }
+}
+</script>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{font-family:Inter,sans-serif;background:#090909;color:#e5e2e3}
+.glass-panel{
+  background:rgba(19,19,20,.72);
+  backdrop-filter:blur(18px);
+  border:1px solid rgba(214,175,94,.16);
+  box-shadow:0 18px 70px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.06);
+}
+.input-glow:focus{box-shadow:0 0 0 2px rgba(214,175,94,.28),0 0 24px rgba(214,175,94,.12)}
+.bg-glow{background:radial-gradient(circle at 50% 0%,rgba(214,175,94,.15),transparent 32%),radial-gradient(circle at 90% 18%,rgba(255,255,255,.04),transparent 26%),#090909}
+.toast{position:fixed;left:16px;right:16px;bottom:96px;z-index:80;max-width:720px;margin:auto;display:none}
+.toast.show{display:block;animation:pop .16s ease}
+@keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.splash{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at center,rgba(214,175,94,.18),transparent 36%),#070707;transition:.45s}
+.splash.hide{opacity:0;pointer-events:none;transform:scale(1.02)}
+.license-card:hover{border-color:rgba(214,175,94,.30)}
+.nav-active{color:#d6af5e!important;text-shadow:0 0 16px rgba(214,175,94,.28)}
+@media(max-width:1023px){#section-licenses.hidden,#section-create.hidden,#section-info.hidden{display:none!important}}
+</style>
+</head>
+<body class="bg-glow min-h-screen overflow-x-hidden">
+
+<div id="splash" class="splash">
+  <div class="text-center">
+    <div class="w-24 h-24 mx-auto rounded-[28px] border border-yellow-500/50 grid place-items-center text-yellow-400 text-3xl font-black bg-yellow-500/10 shadow-[0_0_80px_rgba(214,175,94,.18)]">ADM</div>
+    <div class="mt-5 text-3xl font-black text-yellow-400 tracking-wide">ADM Panel</div>
+    <div class="mt-2 text-stone-400 text-sm uppercase tracking-[.25em]">License Control System</div>
+  </div>
+</div>
+
+<header class="hidden md:flex fixed top-0 w-full z-50 bg-stone-950/70 backdrop-blur-xl border-b border-yellow-500/15 shadow-[0_0_20px_rgba(214,175,94,0.1)] items-center justify-between px-6 h-16">
+  <div class="flex items-center gap-4">
+    <span class="material-symbols-outlined text-yellow-500">security</span>
+    <span class="text-xl font-black tracking-widest text-yellow-500 uppercase">ADM</span>
+  </div>
+  <nav class="flex gap-8">
+    <button id="top-create" class="text-yellow-500 hover:opacity-80 transition-opacity font-bold uppercase text-sm" onclick="page('create')">Создать</button>
+    <button id="top-licenses" class="text-stone-400 hover:opacity-80 transition-opacity font-bold uppercase text-sm" onclick="page('licenses')">Лицензии</button>
+    <button id="top-info" class="text-stone-400 hover:opacity-80 transition-opacity font-bold uppercase text-sm" onclick="page('info')">Инфо</button>
+  </nav>
+  <button onclick="loadKeys()" class="text-yellow-500 hover:opacity-80 transition-opacity active:scale-95 duration-200">
+    <span class="material-symbols-outlined">refresh</span>
+  </button>
+</header>
+
+<main class="flex-1 w-full max-w-7xl mx-auto px-4 md:px-6 pt-6 md:pt-24 pb-28">
+  <div id="status" class="fixed top-4 md:top-20 right-4 z-50 px-4 py-2 rounded-full glass-panel text-sm font-bold text-yellow-400 opacity-0 transition-opacity duration-300">System Ready</div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div class="lg:col-span-4 flex flex-col gap-6" id="section-create">
+      <section class="glass-panel rounded-3xl p-6">
+        <h2 class="text-2xl font-black text-yellow-400 mb-6 flex items-center gap-2">
+          <span class="material-symbols-outlined">add_moderator</span> Создать ключ
+        </h2>
+        <div class="space-y-5">
+          <div>
+            <label class="block text-xs font-black text-stone-300 mb-2 uppercase tracking-wider">Лицензионный ключ</label>
+            <input id="key" class="w-full bg-stone-800/80 border border-yellow-500/15 rounded-xl px-4 py-3 text-white focus:outline-none input-glow transition-all" placeholder="ETM-XXXX-XXXX-XXXX" type="text"/>
+          </div>
+          <button onclick="generateKey()" class="w-full bg-stone-800/80 border border-yellow-500/20 text-yellow-400 font-black py-3 rounded-xl uppercase tracking-wider active:scale-[.98] transition-all flex justify-center items-center gap-2">
+            <span class="material-symbols-outlined text-[18px]">key</span> Сгенерировать
+          </button>
+          <div>
+            <label class="block text-xs font-black text-stone-300 mb-2 uppercase tracking-wider">Клиент / клуб</label>
+            <input id="client" class="w-full bg-stone-800/80 border border-yellow-500/15 rounded-xl px-4 py-3 text-white focus:outline-none input-glow transition-all" placeholder="Например: Avatar PS Club" type="text"/>
+          </div>
+          <div>
+            <label class="block text-xs font-black text-stone-300 mb-2 uppercase tracking-wider">Срок действия</label>
+            <select id="period" class="w-full bg-stone-800/80 border border-yellow-500/15 rounded-xl px-4 py-3 text-white focus:outline-none input-glow transition-all">
+              <option value="7">7 дней</option>
+              <option value="30">30 дней</option>
+              <option value="90">90 дней</option>
+              <option value="365">1 год</option>
+              <option value="lifetime">Навсегда</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-black text-stone-300 mb-2 uppercase tracking-wider">Статус</label>
+            <select id="newStatus" class="w-full bg-stone-800/80 border border-yellow-500/15 rounded-xl px-4 py-3 text-white focus:outline-none input-glow transition-all">
+              <option value="active">active</option>
+              <option value="blocked">blocked</option>
+            </select>
+          </div>
+          <button onclick="addKey()" class="w-full mt-4 bg-yellow-500 text-stone-950 font-black py-4 rounded-xl uppercase tracking-wider hover:opacity-90 active:scale-[0.98] transition-all flex justify-center items-center gap-2 shadow-[0_0_25px_rgba(214,175,94,0.18)]">
+            <span class="material-symbols-outlined text-[18px]">verified_user</span> Создать лицензию
+          </button>
+          <button onclick="clearForm()" class="w-full bg-stone-900/70 border border-stone-700 text-stone-300 font-bold py-3 rounded-xl uppercase tracking-wider active:scale-[.98] transition-all">Очистить</button>
+        </div>
+      </section>
+    </div>
+
+    <div class="lg:col-span-8 flex flex-col gap-6" id="section-licenses">
+      <div class="grid grid-cols-3 gap-4">
+        <button onclick="setFilter('all')" class="glass-panel rounded-2xl p-4 text-center border-yellow-500/30">
+          <span id="sAll" class="block text-3xl font-black text-white">0</span>
+          <span class="text-xs font-black text-stone-400 uppercase mt-1">Всего</span>
+        </button>
+        <button onclick="setFilter('active')" class="glass-panel rounded-2xl p-4 text-center opacity-90">
+          <span id="sAct" class="block text-3xl font-black text-yellow-400">0</span>
+          <span class="text-xs font-black text-stone-400 uppercase mt-1">Active</span>
+        </button>
+        <button onclick="setFilter('blocked')" class="glass-panel rounded-2xl p-4 text-center opacity-90">
+          <span id="sBlk" class="block text-3xl font-black text-red-300">0</span>
+          <span class="text-xs font-black text-stone-400 uppercase mt-1">Blocked</span>
+        </button>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-4 items-center">
+        <div class="relative w-full">
+          <span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-stone-500">search</span>
+          <input id="search" oninput="render()" class="w-full bg-stone-900/70 border border-yellow-500/15 rounded-full pl-12 pr-4 py-3 text-white focus:outline-none input-glow transition-all" placeholder="Поиск по клиенту, ключу или Device ID..." type="text"/>
+        </div>
+        <button onclick="loadKeys()" class="w-full sm:w-auto px-6 py-3 rounded-full bg-yellow-500 text-stone-950 font-black uppercase">Обновить</button>
+      </div>
+
+      <div class="flex flex-col gap-4" id="list"></div>
+    </div>
+
+    <div class="lg:col-span-8 hidden flex-col gap-6" id="section-info">
+      <section class="glass-panel rounded-3xl p-6">
+        <h2 class="text-2xl font-black text-yellow-400 mb-4 flex items-center gap-2">
+          <span class="material-symbols-outlined">info</span> Инфо
+        </h2>
+        <div class="text-stone-300 leading-7">
+          Панель подключена к Supabase и управляет лицензиями программы Elite Tournament Manager.
+          Здесь можно создавать ключи, блокировать, удалять, копировать ключи, смотреть Device ID и Last Seen.
+        </div>
+        <button onclick="loadKeys()" class="mt-6 w-full bg-yellow-500 text-stone-950 font-black py-4 rounded-xl uppercase tracking-wider">Проверить подключение</button>
+      </section>
+    </div>
+  </div>
+</main>
+
+<nav class="md:hidden fixed bottom-0 left-0 w-full h-20 flex justify-around items-center px-4 pb-4 bg-stone-950/80 backdrop-blur-2xl border-t border-yellow-500/10 shadow-[0_-4px_24px_rgba(0,0,0,0.8)] z-50 text-[10px] font-bold uppercase tracking-wider">
+  <button id="nav-create" class="flex flex-col items-center justify-center text-yellow-500 w-20" onclick="page('create')"><span class="material-symbols-outlined mb-1">add_circle</span><span>Создать</span></button>
+  <button id="nav-licenses" class="flex flex-col items-center justify-center text-stone-500 w-20" onclick="page('licenses')"><span class="material-symbols-outlined mb-1">verified_user</span><span>Лицензии</span></button>
+  <button id="nav-info" class="flex flex-col items-center justify-center text-stone-500 w-20" onclick="page('info')"><span class="material-symbols-outlined mb-1">info</span><span>Инфо</span></button>
+</nav>
+
+<div id="toast" class="toast glass-panel rounded-2xl px-4 py-3 text-yellow-400 font-black"></div>
+
+<script>
+const SUPABASE_URL="https://fyggrpvpwmomavcbxnfm.supabase.co";
+const SUPABASE_KEY="sb_publishable_rpUMWnPR_S5EqxsvZnNDEA_4D_mYbcD";
+let sb=null;
+let data=[];
+let filter="all";
+
+function showToast(text, danger=false){
+  const el=document.getElementById("toast");
+  el.innerText=text;
+  el.className="toast glass-panel rounded-2xl px-4 py-3 font-black show "+(danger?"text-red-300":"text-yellow-400");
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.classList.remove("show"),2400);
+}
+
+function showStatus(text, danger=false){
+  const el=document.getElementById("status");
+  el.innerText=text;
+  el.className="fixed top-4 md:top-20 right-4 z-50 px-4 py-2 rounded-full glass-panel text-sm font-bold opacity-100 transition-opacity duration-300 "+(danger?"text-red-300":"text-yellow-400");
+  clearTimeout(el._t);
+  el._t=setTimeout(()=>el.classList.add("opacity-0"),2200);
+}
+
+function init(){
+  if(!window.supabase){showStatus("Supabase не загрузился", true);return false;}
+  try{
+    sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+    showStatus("Подключено к Supabase");
+    return true;
+  }catch(e){
+    showStatus("Ошибка подключения", true);
+    return false;
+  }
+}
+
+function req(){
+  if(!sb)init();
+  if(!sb){showToast("Нет подключения к Supabase", true);return false;}
+  return true;
+}
+
+function page(name){
+  const create=document.getElementById("section-create");
+  const licenses=document.getElementById("section-licenses");
+  const info=document.getElementById("section-info");
+
+  create.classList.add("hidden");
+  licenses.classList.add("hidden");
+  info.classList.add("hidden");
+
+  if(window.innerWidth>=1024){
+    if(name==="info"){info.classList.remove("hidden");}
+    else{create.classList.remove("hidden");licenses.classList.remove("hidden");}
+  }else{
+    if(name==="create")create.classList.remove("hidden");
+    if(name==="licenses")licenses.classList.remove("hidden");
+    if(name==="info")info.classList.remove("hidden");
+  }
+
+  ["create","licenses","info"].forEach(x=>{
+    const n=document.getElementById("nav-"+x);
+    const t=document.getElementById("top-"+x);
+    if(n) n.className="flex flex-col items-center justify-center w-20 "+(x===name?"text-yellow-500":"text-stone-500");
+    if(t) t.className=(x===name?"text-yellow-500":"text-stone-400")+" hover:opacity-80 transition-opacity font-bold uppercase text-sm";
+  });
+  if(name==="licenses")loadKeys();
+}
+
+function generateKey(){
+  const chars="ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const part=n=>Array.from({length:n},()=>chars[Math.floor(Math.random()*chars.length)]).join("");
+  document.getElementById("key").value=`ETM-${part(4)}-${part(4)}-${part(4)}`;
+  showToast("Ключ сгенерирован");
+}
+
+function expiresAt(){
+  const p=document.getElementById("period").value;
+  if(p==="lifetime")return null;
+  const d=new Date();
+  d.setDate(d.getDate()+Number(p));
+  return d.toISOString();
+}
+
+async function addKey(){
+  if(!req())return;
+  const license_key=document.getElementById("key").value.trim().toUpperCase();
+  const client_name=document.getElementById("client").value.trim();
+  const status=document.getElementById("newStatus").value;
+  const expires_at=expiresAt();
+  if(!license_key){showToast("Сначала сгенерируй или введи ключ",true);return;}
+  if(!client_name){showToast("Напиши клиента",true);return;}
+
+  const {error}=await sb.from("licenses").insert([{license_key,client_name,status,expires_at}]);
+  if(error){showToast("Ошибка: "+error.message,true);return;}
+  showToast("Лицензия создана");
+  clearForm();
+  loadKeys();
+  page("licenses");
+}
+
+function clearForm(){
+  document.getElementById("key").value="";
+  document.getElementById("client").value="";
+  document.getElementById("period").value="lifetime";
+  document.getElementById("newStatus").value="active";
+  generateKey();
+}
+
+async function loadKeys(){
+  if(!req())return;
+  showStatus("Загрузка лицензий...");
+  const {data:rows,error}=await sb.from("licenses").select("*").order("id",{ascending:false});
+  if(error){showToast("Ошибка: "+error.message,true);return;}
+  data=rows||[];
+  stats();
+  render();
+}
+
+function stats(){
+  document.getElementById("sAll").innerText=data.length;
+  document.getElementById("sAct").innerText=data.filter(x=>String(x.status).toLowerCase()==="active").length;
+  document.getElementById("sBlk").innerText=data.filter(x=>String(x.status).toLowerCase()==="blocked").length;
+}
+
+function setFilter(f){filter=f;render();}
+
+function dt(x){
+  if(!x)return"Навсегда";
+  try{return new Date(x).toLocaleDateString("ru-RU");}catch{return x;}
+}
+function seen(x){
+  if(!x)return"не заходил";
+  try{return new Date(x).toLocaleString("ru-RU");}catch{return x;}
+}
+function esc(v){return String(v??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;");}
+function escA(v){return String(v??"").replaceAll("\\","\\\\").replaceAll("'","\\'").replaceAll('"','\\"');}
+
+function filtered(){
+  const q=document.getElementById("search").value.toLowerCase().trim();
+  return data.filter(x=>{
+    const st=String(x.status||"").toLowerCase();
+    const okFilter=filter==="all"||st===filter;
+    const okSearch=!q||String(x.license_key||"").toLowerCase().includes(q)||String(x.client_name||"").toLowerCase().includes(q)||String(x.device_id||"").toLowerCase().includes(q);
+    return okFilter&&okSearch;
+  });
+}
+
+function render(){
+  const list=document.getElementById("list");
+  const arr=filtered();
+  if(!arr.length){
+    list.innerHTML=`<div class="glass-panel rounded-3xl p-8 text-center text-stone-400 font-bold">Лицензии не найдены</div>`;
+    return;
+  }
+  list.innerHTML=arr.map(x=>{
+    const st=String(x.status||"").toLowerCase();
+    const active=st==="active";
+    return `<div class="license-card glass-panel rounded-3xl p-5 relative overflow-hidden group ${active?"":"opacity-80"}">
+      <div class="absolute left-0 top-0 bottom-0 w-1 ${active?"bg-yellow-400":"bg-red-400"}"></div>
+      <div class="flex flex-col sm:flex-row justify-between gap-4">
+        <div class="flex flex-col gap-2 flex-1 min-w-0">
+          <div class="flex items-center gap-3">
+            <h3 class="text-lg text-white font-black truncate max-w-[240px]">${esc(x.client_name||"-")}</h3>
+            <span class="px-2 py-1 rounded text-[10px] font-black uppercase tracking-wide border ${active?"bg-yellow-400/10 text-yellow-300 border-yellow-400/20":"bg-red-400/10 text-red-300 border-red-400/20"}">${esc(x.status||"")}</span>
+          </div>
+          <div class="flex items-center gap-2 mt-1">
+            <span class="font-mono text-yellow-300 bg-stone-800/80 px-2 py-1 rounded break-all">${esc(x.license_key||"")}</span>
+            <button onclick="copyKey('${escA(x.license_key)}')" class="text-stone-400 hover:text-yellow-300 transition-colors p-1 rounded-full hover:bg-stone-800">
+              <span class="material-symbols-outlined text-[16px]">content_copy</span>
+            </button>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 mt-2">
+            <div class="flex items-center gap-1 text-xs text-stone-400"><span class="material-symbols-outlined text-[14px]">devices</span><span class="truncate">Device: ${esc(x.device_id||"не активирован")}</span></div>
+            <div class="flex items-center gap-1 text-xs text-stone-400"><span class="material-symbols-outlined text-[14px]">calendar_today</span><span>Срок: ${esc(dt(x.expires_at))}</span></div>
+            <div class="flex items-center gap-1 text-xs text-stone-400 sm:col-span-2"><span class="material-symbols-outlined text-[14px]">history</span><span>Last seen: ${esc(seen(x.last_seen))}</span></div>
+          </div>
+        </div>
+        <div class="flex sm:flex-col justify-end gap-2 border-t sm:border-t-0 sm:border-l border-yellow-500/10 pt-3 sm:pt-0 sm:pl-4">
+          <button title="Active" onclick="setStatus(${x.id},'active')" class="p-2 text-stone-400 hover:text-yellow-300 rounded-full hover:bg-yellow-500/10"><span class="material-symbols-outlined text-[20px]">check_circle</span></button>
+          <button title="Block" onclick="setStatus(${x.id},'blocked')" class="p-2 text-stone-400 hover:text-red-300 rounded-full hover:bg-red-500/10"><span class="material-symbols-outlined text-[20px]">block</span></button>
+          <button title="Reset Device" onclick="resetDevice(${x.id})" class="p-2 text-stone-400 hover:text-blue-300 rounded-full hover:bg-blue-500/10"><span class="material-symbols-outlined text-[20px]">devices_off</span></button>
+          <button title="Delete" onclick="deleteKey(${x.id})" class="p-2 text-stone-400 hover:text-red-300 rounded-full hover:bg-red-500/10"><span class="material-symbols-outlined text-[20px]">delete</span></button>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+async function setStatus(id,status){
+  if(!req())return;
+  const {error}=await sb.from("licenses").update({status}).eq("id",id);
+  if(error){showToast("Ошибка: "+error.message,true);return;}
+  showToast(status==="active"?"Лицензия активна":"Лицензия заблокирована");
+  loadKeys();
+}
+
+async function resetDevice(id){
+  if(!confirm("Сбросить Device ID? Клиент сможет активировать ключ на новом ПК."))return;
+  const {error}=await sb.from("licenses").update({device_id:null}).eq("id",id);
+  if(error){showToast("Ошибка: "+error.message,true);return;}
+  showToast("Device ID сброшен");
+  loadKeys();
+}
+
+async function deleteKey(id){
+  if(!confirm("Удалить лицензию?"))return;
+  const {error}=await sb.from("licenses").delete().eq("id",id);
+  if(error){showToast("Ошибка: "+error.message,true);return;}
+  showToast("Лицензия удалена");
+  loadKeys();
+}
+
+async function copyKey(k){
+  try{await navigator.clipboard.writeText(k);showToast("Ключ скопирован");}
+  catch{showToast(k);}
+}
+
+window.addEventListener("resize",()=>page(window.innerWidth>=1024?"create":"licenses"));
+setTimeout(()=>document.getElementById("splash").classList.add("hide"),950);
+generateKey();
+init();
+setTimeout(loadKeys,500);
+page(window.innerWidth>=1024?"create":"licenses");
+</script>
+</body>
+</html>
